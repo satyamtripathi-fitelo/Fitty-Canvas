@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase";
-import { getAuthenticatedUser } from "@/lib/supabase-server";
+import { getSupabaseServerClient } from "@/lib/supabase-server";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdminClient();
+    const supabase = await getSupabaseServerClient();
     
-    const user = await getAuthenticatedUser(request);
+    const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -20,8 +20,11 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "10", 10);
     const offset = (page - 1) * limit;
 
+    // Use admin client for querying
+    const adminClient = getSupabaseAdminClient();
+    
     // Fetch user's images with pagination
-    const { data, error, count } = await supabase
+    const { data, error, count } = await adminClient
       .from("image_jobs")
       .select("*", { count: "exact" })
       .eq("user_id", user.id)

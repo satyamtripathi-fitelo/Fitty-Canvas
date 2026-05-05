@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRequestLogger } from "@/lib/server-log";
 import { getSupabaseAdminClient, getUploadBucketName } from "@/lib/supabase";
-import { getAuthenticatedUser } from "@/lib/supabase-server";
+import { getSupabaseServerClient } from "@/lib/supabase-server";
 import { getImageMetadata } from "@/lib/sharp-utils";
 
 export const runtime = "nodejs";
@@ -34,7 +34,8 @@ export async function POST(request: Request) {
   try {
     log.info("request:start");
     
-    const user = await getAuthenticatedUser(request);
+    const supabase = await getSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
       log.info("request:unauthorized");

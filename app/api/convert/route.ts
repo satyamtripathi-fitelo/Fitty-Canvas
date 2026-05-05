@@ -3,7 +3,7 @@ import { extractGeminiImage, getGeminiModel, getGeminiModelId } from "@/lib/gemi
 import { createRequestLogger } from "@/lib/server-log";
 import { loadImageForConversion } from "@/lib/storage-download";
 import { getOutputBucketName, getSupabaseAdminClient, getSupabaseProjectUrl } from "@/lib/supabase";
-import { getAuthenticatedUser } from "@/lib/supabase-server";
+import { getSupabaseServerClient } from "@/lib/supabase-server";
 import {
   convertImage,
   getImageMetadata,
@@ -36,7 +36,8 @@ export async function POST(request: Request) {
   let userId: string | undefined;
 
   try {
-    const user = await getAuthenticatedUser(request);
+    const supabase = await getSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
       log.info("request:unauthorized");

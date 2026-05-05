@@ -96,6 +96,13 @@ Once deployed, test the following:
 - ✅ Fixed convert button loading state issue
 - ✅ All API routes now properly authenticate users
 
+### Commit 3: Fix Supabase SSR Browser Client
+- ✅ Updated browser client to use `createBrowserClient` from `@supabase/ssr`
+- ✅ This ensures cookies are properly set and managed by Supabase
+- ✅ Fixed TypeScript strict mode errors in auth-context
+- ✅ Should resolve 401 Unauthorized on history endpoint
+- ✅ Cookies now work correctly across all requests
+
 ## Current Features Working ✅
 - ✅ Google OAuth authentication (cookies-based)
 - ✅ Image upload with user association

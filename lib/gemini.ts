@@ -2,11 +2,10 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 /**
  * Prompt-based edits need an image-capable model (image -> image).
- * The paid "best" default for this project is Gemini 3 Pro Image Preview.
- * GEMINI_MODEL is only honored for Gemini 3 image model IDs so stale 2.x env
- * values cannot silently downgrade this paid image pipeline.
+ * The default model is Gemini 3.1 Flash Image Preview which supports image generation.
+ * This is the recommended model for best all-around performance and intelligence.
  */
-const DEFAULT_GEMINI_MODEL = "gemini-3-pro-image-preview";
+const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image-preview";
 
 function trimEnv(value: string | undefined) {
   return value?.trim() ?? "";
@@ -28,19 +27,22 @@ export function getGeminiModel() {
 export function getGeminiModelId() {
   const requestedModelId = trimEnv(process.env.GEMINI_MODEL);
   if (!requestedModelId) return DEFAULT_GEMINI_MODEL;
-  if (isAllowedGemini3ImageModel(requestedModelId)) return requestedModelId;
+  
+  // Allow any Gemini image-capable model
+  if (isAllowedGeminiImageModel(requestedModelId)) return requestedModelId;
 
   console.warn(
-    `[gemini] Ignoring GEMINI_MODEL="${requestedModelId}". This app is pinned to a Gemini 3 image-output model.`
+    `[gemini] Ignoring GEMINI_MODEL="${requestedModelId}". This app requires an image-capable Gemini model.`
   );
   return DEFAULT_GEMINI_MODEL;
 }
 
-function isAllowedGemini3ImageModel(modelId: string) {
+function isAllowedGeminiImageModel(modelId: string) {
   const id = modelId.toLowerCase();
+  // Accept Gemini 2.x and 3.x image models
   return (
-    id.startsWith("gemini-3") &&
-    (id.includes("image-preview") || id.includes("pro-image") || id.includes("image-generation"))
+    (id.startsWith("gemini-2") || id.startsWith("gemini-3")) &&
+    (id.includes("image") || id.includes("flash-image") || id.includes("pro-image"))
   );
 }
 

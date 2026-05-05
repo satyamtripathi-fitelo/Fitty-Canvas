@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Fitty brand: white canvas + forest green #1B432C */
+  --background: 0 0% 100%;
+  --foreground: 152 35% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 152 35% 14%;
+  --border: 152 18% 88%;
+  --input: 152 18% 88%;
+  --ring: 152 43% 28%;
+  --primary: 152 43% 18%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 152 28% 93%;
+  --secondary-foreground: 152 43% 18%;
+  --muted: 152 12% 96%;
+  --muted-foreground: 152 12% 42%;
+  --danger: 0 72% 50%;
+}
+
+.dark {
+  --background: 152 38% 9%;
+  --foreground: 40 20% 96%;
+  --card: 152 32% 12%;
+  --card-foreground: 40 20% 96%;
+  --border: 152 22% 22%;
+  --input: 152 22% 22%;
+  --ring: 152 35% 45%;
+  --primary: 152 38% 42%;
+  --primary-foreground: 152 40% 8%;
+  --secondary: 152 25% 18%;
+  --secondary-foreground: 40 20% 96%;
+  --muted: 152 22% 16%;
+  --muted-foreground: 152 12% 72%;
+  --danger: 0 72% 58%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.checkerboard {
+  background-color: hsl(var(--muted));
+  background-image:
+    linear-gradient(45deg, rgba(127, 127, 127, 0.15) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(127, 127, 127, 0.15) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(127, 127, 127, 0.15) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(127, 127, 127, 0.15) 75%);
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  background-size: 20px 20px;
+}

@@ -36,8 +36,8 @@ export async function POST(request: Request) {
   let userId: string | undefined;
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const supabaseAuth = await getSupabaseServerClient();
+    const { data: { user } } = await supabaseAuth.auth.getUser();
     
     if (!user) {
       log.info("request:unauthorized");
@@ -73,16 +73,16 @@ export async function POST(request: Request) {
     const outputFormat = normalizeFormat(body.outputFormat);
     const quality = clamp(Number(body.quality) || 90, 10, 100);
     const prompt = body.prompt?.trim() ?? "";
-    const adminClient = getSupabaseAdminClient();
+    const supabase = getSupabaseAdminClient();
 
     if (jobId) {
-      await adminClient.from("image_jobs").update({ status: "processing" }).eq("id", jobId).eq("user_id", user.id);
+      await supabase.from("image_jobs").update({ status: "processing" }).eq("id", jobId).eq("user_id", user.id);
     }
 
     const projectUrl = getSupabaseProjectUrl();
     log.info("source:load:start");
     const { buffer: sourceBuffer, contentType: sourceContentType } = await loadImageForConversion(
-      adminClient,
+      supabase,
       body.imageUrl,
       projectUrl
     );
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
       bytes: outputBuffer.length
     });
 
-    const upload = await adminClient.storage.from(outputBucket).upload(filename, outputBuffer, {
+    const upload = await supabase.storage.from(outputBucket).upload(filename, outputBuffer, {
       contentType: getMimeType(outputFormat),
       upsert: false
     });
@@ -148,11 +148,11 @@ export async function POST(request: Request) {
       throw new Error(upload.error.message + hint);
     }
 
-    const { data: publicData } = adminClient.storage.from(outputBucket).getPublicUrl(filename);
+    const { data: publicData } = supabase.storage.from(outputBucket).getPublicUrl(filename);
     const outputUrl = publicData.publicUrl;
 
     if (jobId) {
-      const update = await adminClient
+      const update = await supabase
         .from("image_jobs")
         .update({
           output_url: outputUrl,
@@ -175,7 +175,7 @@ export async function POST(request: Request) {
       }
 
       if (!update.data) {
-        const insert = await adminClient
+        const insert = await supabase
           .from("image_jobs")
           .insert({
             original_url: body.imageUrl,
@@ -199,7 +199,7 @@ export async function POST(request: Request) {
         jobId = insert.data?.id;
       }
     } else {
-      const insert = await adminClient
+      const insert = await supabase
         .from("image_jobs")
         .insert({
           original_url: body.imageUrl,
@@ -241,8 +241,8 @@ export async function POST(request: Request) {
     log.error("request:error", error, { jobId });
     if (jobId && userId) {
       try {
-        const adminClient = getSupabaseAdminClient();
-      await adminClient.from("image_jobs").update({ status: "error" }).eq("id", jobId).eq("user_id", userId);
+        const supabase = getSupabaseAdminClient();
+        await supabase.from("image_jobs").update({ status: "error" }).eq("id", jobId).eq("user_id", userId);
       } catch {
         // Preserve the original conversion error for the response.
       }

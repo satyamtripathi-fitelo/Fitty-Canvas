@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { extractGeminiImage, getGeminiModel, getGeminiModelId } from "@/lib/gemini";
+import { generateImageWithOpenAI, getOpenAIModelId } from "@/lib/openai";
 import { createRequestLogger } from "@/lib/server-log";
 import { loadImageForConversion } from "@/lib/storage-download";
 import { getOutputBucketName, getSupabaseAdminClient, getSupabaseProjectUrl } from "@/lib/supabase";
@@ -11,6 +12,7 @@ import {
   normalizeFormat,
   resizeToCanvas
 } from "@/lib/sharp-utils";
+import type { AIModel } from "@/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -28,6 +30,7 @@ type ConvertRequest = {
   outputFormat?: string;
   quality?: number;
   background?: string;
+  aiModel?: AIModel;
 };
 
 export async function POST(request: Request) {
@@ -73,6 +76,7 @@ export async function POST(request: Request) {
     const outputFormat = normalizeFormat(body.outputFormat);
     const quality = clamp(Number(body.quality) || 90, 10, 100);
     const prompt = body.prompt?.trim() ?? "";
+    const aiModel = body.aiModel || "gemini";
     const supabase = getSupabaseAdminClient();
 
     if (jobId) {
@@ -92,20 +96,22 @@ export async function POST(request: Request) {
       contentType: sourceContentType,
       width: sourceMetadata.width,
       height: sourceMetadata.height,
-      bytes: sourceBuffer.length
+      bytes: sourceBuffer.length,
+      aiModel
     });
 
-    const shouldUseGemini = Boolean(prompt) || sourceMetadata.width !== targetWidth || sourceMetadata.height !== targetHeight;
-    const resized = shouldUseGemini
-      ? await resizeWithGemini(sourceBuffer, {
+    const shouldUseAI = Boolean(prompt) || sourceMetadata.width !== targetWidth || sourceMetadata.height !== targetHeight;
+    const resized = shouldUseAI
+      ? await resizeWithAI(sourceBuffer, {
           targetRatio: body.targetRatio ?? `${targetWidth}:${targetHeight}`,
           targetWidth,
           targetHeight,
           prompt: [DEFAULT_RATIO_PROMPT, prompt].filter(Boolean).join(" "),
           sourceMime: sourceContentType,
+          aiModel,
           log
         }).catch((error) => {
-          log.error("gemini:generate:error", error);
+          log.error(`${aiModel}:generate:error`, error);
           return resizeToCanvas(sourceBuffer, {
             width: targetWidth,
             height: targetHeight,
@@ -252,6 +258,25 @@ export async function POST(request: Request) {
   }
 }
 
+async function resizeWithAI(
+  buffer: Buffer,
+  options: {
+    targetRatio: string;
+    targetWidth: number;
+    targetHeight: number;
+    prompt: string;
+    sourceMime: string;
+    aiModel: AIModel;
+    log: ReturnType<typeof createRequestLogger>;
+  }
+) {
+  if (options.aiModel === "openai") {
+    return await resizeWithOpenAI(buffer, options);
+  } else {
+    return await resizeWithGemini(buffer, options);
+  }
+}
+
 async function resizeWithGemini(
   buffer: Buffer,
   options: {
@@ -285,6 +310,38 @@ async function resizeWithGemini(
 
   const image = extractGeminiImage(result);
   options.log.info("gemini:generate:success", { outputBytes: image.length });
+  return image;
+}
+
+async function resizeWithOpenAI(
+  buffer: Buffer,
+  options: {
+    targetRatio: string;
+    targetWidth: number;
+    targetHeight: number;
+    prompt: string;
+    sourceMime: string;
+    log: ReturnType<typeof createRequestLogger>;
+  }
+) {
+  options.log.info("openai:generate:start", {
+    model: getOpenAIModelId(),
+    sourceMime: options.sourceMime,
+    targetWidth: options.targetWidth,
+    targetHeight: options.targetHeight
+  });
+
+  const fullPrompt = `Resize this image to ${options.targetWidth}x${options.targetHeight} (${options.targetRatio}) aspect ratio. ${options.prompt} Return only the modified image.`;
+
+  const image = await generateImageWithOpenAI({
+    prompt: fullPrompt,
+    imageBase64: buffer.toString("base64"),
+    imageMimeType: options.sourceMime,
+    width: options.targetWidth,
+    height: options.targetHeight
+  });
+
+  options.log.info("openai:generate:success", { outputBytes: image.length });
   return image;
 }
 

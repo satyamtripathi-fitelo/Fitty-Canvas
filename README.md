@@ -149,9 +149,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ## Features in Detail
 
 ### AI Model Selection
-- **Gemini**: Google's multimodal AI model
-- **OpenAI**: GPT-4 Vision for image processing
-- Toggle between models based on your preference
+- **Gemini 3.1 Flash Image Preview**: Google's latest multimodal AI model with image generation (default)
+- **OpenAI gpt-image-2**: OpenAI's ChatGPT Images 2.0 with native reasoning and 2K resolution
+- Toggle between models based on your preference and API availability
 
 ### Aspect Ratios
 - Original (keeps source ratio)

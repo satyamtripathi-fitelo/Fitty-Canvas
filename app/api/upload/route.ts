@@ -66,7 +66,7 @@ export async function POST(request: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const metadata = await getImageMetadata(buffer);
-    const supabase = getSupabaseAdminClient();
+    const adminClient = getSupabaseAdminClient();
     const uploadBucket = getUploadBucketName();
     const extension = extensionFromFile(file);
     const filename = `${crypto.randomUUID()}.${extension}`;
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       height: metadata.height
     });
 
-    const upload = await supabase.storage
+    const upload = await adminClient.storage
       .from(uploadBucket)
       .upload(filename, buffer, {
         contentType: resolvedType,
@@ -94,12 +94,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: upload.error.message + hint }, { status: 500 });
     }
 
-    const { data: publicData } = supabase.storage.from(uploadBucket).getPublicUrl(filename);
+    const { data: publicData } = adminClient.storage.from(uploadBucket).getPublicUrl(filename);
     const originalUrl = publicData.publicUrl;
 
     log.info("db:image_jobs:insert:start", { bucket: uploadBucket, filename });
 
-    const insert = await supabase
+    const insert = await adminClient
       .from("image_jobs")
       .insert({
         original_url: originalUrl,

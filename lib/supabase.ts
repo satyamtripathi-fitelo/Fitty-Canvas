@@ -1,6 +1,7 @@
+import { createBrowserClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 
-let supabaseBrowserClient: ReturnType<typeof createClient> | null = null;
+let supabaseBrowserClient: ReturnType<typeof createBrowserClient> | null = null;
 
 function trimEnv(value: string | undefined) {
   return value?.trim() ?? "";
@@ -34,7 +35,7 @@ export function getSupabaseBrowserClient() {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) or NEXT_PUBLIC_SUPABASE_ANON_KEY.");
   }
 
-  supabaseBrowserClient ??= createClient(supabaseUrl, supabaseAnonKey);
+  supabaseBrowserClient ??= createBrowserClient(supabaseUrl, supabaseAnonKey);
 
   return supabaseBrowserClient;
 }

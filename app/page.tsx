@@ -121,6 +121,7 @@ export default function Home() {
     
     try {
       const response = await fetch(apiUrl(`/api/history?page=1&limit=5`), { 
+        credentials: "include", // Include cookies for authentication
         cache: "no-store" 
       });
       const payload = await response.json();
@@ -146,6 +147,7 @@ export default function Home() {
     
     try {
       const response = await fetch(apiUrl(`/api/history?page=1&limit=100`), { 
+        credentials: "include", // Include cookies for authentication
         cache: "no-store" 
       });
       const payload = await response.json();
@@ -173,6 +175,7 @@ export default function Home() {
     try {
       const response = await fetch(apiUrl("/api/convert"), {
         method: "POST",
+        credentials: "include", // Include cookies for authentication
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jobId: uploadedImage.jobId,
@@ -324,7 +327,6 @@ export default function Home() {
               <h2 className="mb-4 text-xl font-semibold">Original Image</h2>
               <ImageUploader
                 uploadedImage={uploadedImage}
-                accessToken={session?.access_token}
                 onUploaded={(image) => {
                   setUploadedImage(image);
                   setOutputUrl(null);
@@ -468,14 +470,4 @@ async function readJsonResponse(response: Response) {
       error: `Server returned a non-JSON response (${response.status}). Check the dev-server terminal logs.`
     };
   }
-}
-
-function getAuthHeaders(accessToken: string | undefined, headers?: HeadersInit) {
-  const nextHeaders = new Headers(headers);
-
-  if (accessToken) {
-    nextHeaders.set("Authorization", `Bearer ${accessToken}`);
-  }
-
-  return nextHeaders;
 }

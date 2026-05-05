@@ -9,14 +9,13 @@ import type { UploadedImage } from "@/types";
 
 type ImageUploaderProps = {
   uploadedImage: UploadedImage | null;
-  accessToken?: string;
   onUploaded: (image: UploadedImage) => void;
   onUploadingChange: (uploading: boolean) => void;
 };
 
 const ACCEPT = ".jpg,.jpeg,.png,.webp,.avif,.tif,.tiff,.gif,.bmp,image/jpeg,image/png,image/webp,image/avif,image/tiff,image/gif,image/bmp";
 
-export function ImageUploader({ uploadedImage, accessToken, onUploaded, onUploadingChange }: ImageUploaderProps) {
+export function ImageUploader({ uploadedImage, onUploaded, onUploadingChange }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -31,7 +30,7 @@ export function ImageUploader({ uploadedImage, accessToken, onUploaded, onUpload
     try {
       const response = await fetch(apiUrl("/api/upload"), {
         method: "POST",
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        credentials: "include", // Include cookies for authentication
         body: formData
       });
       reachedApi = true;

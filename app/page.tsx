@@ -44,7 +44,7 @@ export default function Home() {
   const [customHeight, setCustomHeight] = useState(1080);
   const [prompt, setPrompt] = useState("");
   const [format, setFormat] = useState<OutputFormat>("jpg");
-  const [quality, setQuality] = useState(90);
+  const [quality] = useState(100); // Fixed at 100%
   const [aiModel, setAiModel] = useState<AIModel>("gemini");
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
@@ -52,6 +52,7 @@ export default function Home() {
   const [historyPage, setHistoryPage] = useState(1);
   const [hasMoreHistory, setHasMoreHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [showAllHistory, setShowAllHistory] = useState(false);
 
   const target = useMemo(() => {
     if (selectedRatio === "Original" && uploadedImage) {
@@ -113,45 +114,52 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   });
 
-  async function refreshHistory(reset = false, pageOverride?: number) {
+  async function refreshHistory(reset = false) {
     if (!user) return;
     
     setLoadingHistory(true);
-    const page = pageOverride ?? (reset ? 1 : historyPage);
     
     try {
-      const response = await fetch(apiUrl(`/api/history?page=${page}&limit=10`), { 
-        headers: getAuthHeaders(session?.access_token),
+      const response = await fetch(apiUrl(`/api/history?page=1&limit=5`), { 
         cache: "no-store" 
       });
       const payload = await response.json();
       
       if (response.ok) {
-        if (reset) {
-          setHistory(payload.jobs ?? []);
-          setHistoryPage(1);
-        } else {
-          setHistory((prev) => [...prev, ...(payload.jobs ?? [])]);
-          setHistoryPage(page);
-        }
+        setHistory(payload.jobs ?? []);
         setHasMoreHistory(payload.hasMore ?? false);
       } else if (response.status === 401) {
-        // User not authenticated
         setHistory([]);
         setHasMoreHistory(false);
       }
     } catch {
-      if (reset) {
-        setHistory([]);
-      }
+      setHistory([]);
     } finally {
       setLoadingHistory(false);
     }
   }
 
-  async function loadMoreHistory() {
-    const nextPage = historyPage + 1;
-    await refreshHistory(false, nextPage);
+  async function loadAllHistory() {
+    if (!user) return;
+    
+    setLoadingHistory(true);
+    
+    try {
+      const response = await fetch(apiUrl(`/api/history?page=1&limit=100`), { 
+        cache: "no-store" 
+      });
+      const payload = await response.json();
+      
+      if (response.ok) {
+        setHistory(payload.jobs ?? []);
+        setShowAllHistory(true);
+        setHasMoreHistory(false);
+      }
+    } catch {
+      // Keep existing history
+    } finally {
+      setLoadingHistory(false);
+    }
   }
 
   async function convert() {
@@ -226,7 +234,6 @@ export default function Home() {
     setPrompt("");
     setSelectedRatio("Original");
     setFormat("jpg");
-    setQuality(90);
     toast.message("Canvas reset");
   }
 
@@ -272,7 +279,7 @@ export default function Home() {
           </h1>
         </div>
 
-        {user && uploadedImage ? (
+        {user && (uploadedImage || uploading) ? (
           <div
             className={cn(
               "grid gap-6",
@@ -281,8 +288,9 @@ export default function Home() {
           >
             <ImagePreviewPanel
               label="Original"
-              imageUrl={uploadedImage.originalUrl}
+              imageUrl={uploadedImage?.originalUrl}
               ratio={originalRatio}
+              loading={uploading}
               emptyText="Upload an image to begin."
               onClose={clearOriginalImage}
             />
@@ -358,7 +366,7 @@ export default function Home() {
 
               <div>
                 <h2 className="mb-3 text-xl font-semibold">Export</h2>
-                <FormatSelector format={format} quality={quality} onFormatChange={setFormat} onQualityChange={setQuality} />
+                <FormatSelector format={format} onFormatChange={setFormat} />
               </div>
 
               <div className="space-y-3">
@@ -382,7 +390,7 @@ export default function Home() {
             <h2 className="text-xl font-semibold">Your History</h2>
             {user && history.length > 0 && (
               <span className="text-xs text-muted-foreground">
-                {history.length} image{history.length !== 1 ? "s" : ""}
+                {showAllHistory ? `${history.length} image${history.length !== 1 ? "s" : ""}` : "Latest 5 images"}
               </span>
             )}
           </div>
@@ -423,15 +431,15 @@ export default function Home() {
                   </a>
                 ))}
               </div>
-              {hasMoreHistory && (
+              {hasMoreHistory && !showAllHistory && (
                 <div className="mt-4 flex justify-center">
                   <button
                     type="button"
-                    onClick={() => void loadMoreHistory()}
+                    onClick={() => void loadAllHistory()}
                     disabled={loadingHistory}
                     className="rounded-[10px] border px-6 py-2 text-sm font-medium transition hover:border-primary hover:text-primary disabled:opacity-50"
                   >
-                    {loadingHistory ? "Loading..." : "Load More"}
+                    {loadingHistory ? "Loading..." : "View More"}
                   </button>
                 </div>
               )}

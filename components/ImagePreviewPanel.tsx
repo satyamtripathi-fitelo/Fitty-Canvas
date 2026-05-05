@@ -62,7 +62,7 @@ export function ImagePreviewPanel({
           {loading ? (
             <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
               <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              Converting image...
+              {label === "Original" ? "Uploading image..." : "Converting image..."}
             </div>
           ) : imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element

@@ -15,7 +15,10 @@ import {
 import type { AIModel } from "@/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 60; // Pro plan supports up to 300s, Hobby is 10s
+
+// If on Vercel Hobby plan, you'll need to upgrade to Pro for longer timeouts
+// Or reduce image sizes and use faster models
 
 const DEFAULT_RATIO_PROMPT =
   "Change the image to the requested aspect ratio by naturally extending or cropping the scene. Preserve the main subject, style, lighting, colors, and important details. Fill any new canvas areas realistically with matching background content. Do not add borders, letterboxing, black bars, text, watermarks, or frames.";
@@ -101,28 +104,43 @@ export async function POST(request: Request) {
     });
 
     const shouldUseAI = Boolean(prompt) || sourceMetadata.width !== targetWidth || sourceMetadata.height !== targetHeight;
-    const resized = shouldUseAI
-      ? await resizeWithAI(sourceBuffer, {
-          targetRatio: body.targetRatio ?? `${targetWidth}:${targetHeight}`,
-          targetWidth,
-          targetHeight,
-          prompt: [DEFAULT_RATIO_PROMPT, prompt].filter(Boolean).join(" "),
-          sourceMime: sourceContentType,
-          aiModel,
-          log
-        }).catch((error) => {
-          log.error(`${aiModel}:generate:error`, error);
-          return resizeToCanvas(sourceBuffer, {
-            width: targetWidth,
-            height: targetHeight,
-            background: body.background
-          });
-        })
-      : await resizeToCanvas(sourceBuffer, {
+    
+    let resized: Buffer;
+    
+    if (shouldUseAI) {
+      try {
+        // Add a timeout wrapper for AI generation
+        const timeoutMs = 50000; // 50 seconds (leave 10s buffer for other operations)
+        resized = await Promise.race([
+          resizeWithAI(sourceBuffer, {
+            targetRatio: body.targetRatio ?? `${targetWidth}:${targetHeight}`,
+            targetWidth,
+            targetHeight,
+            prompt: [DEFAULT_RATIO_PROMPT, prompt].filter(Boolean).join(" "),
+            sourceMime: sourceContentType,
+            aiModel,
+            log
+          }),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error(`${aiModel} generation timed out after ${timeoutMs}ms. Try a smaller image size or use Sharp-only mode.`)), timeoutMs)
+          )
+        ]);
+      } catch (error) {
+        log.error(`${aiModel}:generate:error`, error);
+        log.info("fallback:sharp-resize");
+        resized = await resizeToCanvas(sourceBuffer, {
           width: targetWidth,
           height: targetHeight,
           background: body.background
         });
+      }
+    } else {
+      resized = await resizeToCanvas(sourceBuffer, {
+        width: targetWidth,
+        height: targetHeight,
+        background: body.background
+      });
+    }
 
     const outputBuffer = await convertImage(resized, {
       format: outputFormat,
@@ -289,11 +307,27 @@ async function resizeWithGemini(
   }
 ) {
   const model = getGeminiModel();
+  
+  // Optimize: Reduce image size if too large to speed up processing
+  const maxDimension = 2048; // Limit to 2K for faster processing
+  let processWidth = options.targetWidth;
+  let processHeight = options.targetHeight;
+  
+  if (options.targetWidth > maxDimension || options.targetHeight > maxDimension) {
+    const scale = Math.min(maxDimension / options.targetWidth, maxDimension / options.targetHeight);
+    processWidth = Math.round(options.targetWidth * scale);
+    processHeight = Math.round(options.targetHeight * scale);
+    options.log.info("gemini:size-optimized", {
+      original: `${options.targetWidth}x${options.targetHeight}`,
+      optimized: `${processWidth}x${processHeight}`
+    });
+  }
+  
   options.log.info("gemini:generate:start", {
     model: getGeminiModelId(),
     sourceMime: options.sourceMime,
-    targetWidth: options.targetWidth,
-    targetHeight: options.targetHeight
+    targetWidth: processWidth,
+    targetHeight: processHeight
   });
 
   const result = await model.generateContent([
@@ -304,12 +338,29 @@ async function resizeWithGemini(
       }
     },
     {
-      text: `Resize this image to ${options.targetWidth}x${options.targetHeight} (${options.targetRatio}) aspect ratio. ${options.prompt} Return only the modified image.`
+      text: `Resize this image to ${processWidth}x${processHeight} (${options.targetRatio}) aspect ratio. ${options.prompt} Return only the modified image.`
     }
   ]);
 
   const image = extractGeminiImage(result);
   options.log.info("gemini:generate:success", { outputBytes: image.length });
+  
+  // If we downscaled, upscale back to target size using Sharp
+  if (processWidth !== options.targetWidth || processHeight !== options.targetHeight) {
+    const sharp = (await import("sharp")).default;
+    const upscaled = await sharp(image)
+      .resize(options.targetWidth, options.targetHeight, {
+        fit: "fill",
+        kernel: "lanczos3"
+      })
+      .toBuffer();
+    options.log.info("gemini:upscaled", {
+      from: `${processWidth}x${processHeight}`,
+      to: `${options.targetWidth}x${options.targetHeight}`
+    });
+    return upscaled;
+  }
+  
   return image;
 }
 

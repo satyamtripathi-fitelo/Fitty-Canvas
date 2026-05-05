@@ -2,10 +2,10 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 /**
  * Prompt-based edits need an image-capable model (image -> image).
- * The default model is Gemini 3.1 Flash Image Preview which supports image generation.
- * This is the recommended model for best all-around performance and intelligence.
+ * Using Gemini 2.5 Flash Image as default for faster processing and lower latency.
+ * For higher quality, set GEMINI_MODEL=gemini-3.1-flash-image-preview
  */
-const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image-preview";
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-image";
 
 function trimEnv(value: string | undefined) {
   return value?.trim() ?? "";

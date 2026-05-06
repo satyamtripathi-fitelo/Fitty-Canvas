@@ -25,7 +25,7 @@ export function ModelSelector({ model, onModelChange }: ModelSelectorProps) {
           )}
         >
           <Sparkles className="h-4 w-4" />
-          Gemini
+          Gemini 3 Pro
         </button>
         <button
           type="button"
@@ -38,7 +38,7 @@ export function ModelSelector({ model, onModelChange }: ModelSelectorProps) {
           )}
         >
           <Brain className="h-4 w-4" />
-          OpenAI
+          GPT Image 1.5
         </button>
       </div>
     </div>

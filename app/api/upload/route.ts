@@ -10,23 +10,14 @@ export const runtime = "nodejs";
 const ACCEPTED_TYPES = new Set([
   "image/jpeg",
   "image/png",
-  "image/webp",
-  "image/avif",
-  "image/tiff",
-  "image/gif",
-  "image/bmp"
+  "image/webp"
 ]);
 
 const TYPES_BY_EXTENSION: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   png: "image/png",
-  webp: "image/webp",
-  avif: "image/avif",
-  tif: "image/tiff",
-  tiff: "image/tiff",
-  gif: "image/gif",
-  bmp: "image/bmp"
+  webp: "image/webp"
 };
 
 export async function POST(request: Request) {

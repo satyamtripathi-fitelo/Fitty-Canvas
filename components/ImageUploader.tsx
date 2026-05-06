@@ -13,7 +13,8 @@ type ImageUploaderProps = {
   onUploadingChange: (uploading: boolean) => void;
 };
 
-const ACCEPT = ".jpg,.jpeg,.png,.webp,.avif,.tif,.tiff,.gif,.bmp,image/jpeg,image/png,image/webp,image/avif,image/tiff,image/gif,image/bmp";
+const ACCEPT = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
+const FORMATS = ["JPG", "PNG", "WEBP"];
 
 export function ImageUploader({ uploadedImage, onUploaded, onUploadingChange }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -90,7 +91,13 @@ export function ImageUploader({ uploadedImage, onUploaded, onUploadingChange }: 
         <input ref={inputRef} type="file" accept={ACCEPT} onChange={handleInput} className="hidden" />
         <UploadCloud className="mb-2 h-7 w-7 text-primary" />
         <p className="text-sm font-semibold">Drop your image here</p>
-        <p className="mt-1 text-xs text-muted-foreground">or click to browse JPG, PNG, WEBP, AVIF, TIFF, GIF, BMP</p>
+        <div className="mt-3 flex items-center justify-center gap-2">
+          {FORMATS.map((format) => (
+            <span key={format} className="rounded-full border bg-background px-3 py-1 text-[11px] font-semibold text-muted-foreground">
+              {format}
+            </span>
+          ))}
+        </div>
       </div>
 
       {uploadedImage ? (

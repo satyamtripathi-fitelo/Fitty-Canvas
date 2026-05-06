@@ -1,7 +1,7 @@
 import OpenAI, { toFile } from "openai";
 
 const DEFAULT_OPENAI_MODEL = "gpt-image-1.5";
-const DEFAULT_OPENAI_QUALITY = "low";
+const DEFAULT_OPENAI_QUALITY = "high";
 
 type OpenAIImageSize = "1024x1024" | "1536x1024" | "1024x1536";
 type OpenAIImageQuality = "low" | "medium" | "high" | "auto";
@@ -83,7 +83,7 @@ function isAllowedOpenAIImageModel(modelId: string) {
 
 function getOpenAIImageQuality(): OpenAIImageQuality {
   const requestedQuality = trimEnv(process.env.OPENAI_IMAGE_QUALITY).toLowerCase();
-  if (requestedQuality === "medium" || requestedQuality === "high" || requestedQuality === "auto") {
+  if (requestedQuality === "low" || requestedQuality === "medium" || requestedQuality === "high" || requestedQuality === "auto") {
     return requestedQuality;
   }
 

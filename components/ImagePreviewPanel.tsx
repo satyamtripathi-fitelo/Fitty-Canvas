@@ -1,4 +1,4 @@
-import { ImageIcon, Download, X } from "lucide-react";
+import { ImageIcon, Download, Maximize2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type ImagePreviewPanelProps = {
@@ -9,6 +9,7 @@ type ImagePreviewPanelProps = {
   emptyText: string;
   onClose?: () => void;
   onDownload?: () => void;
+  onExpand?: () => void;
   format?: string;
 };
 
@@ -20,6 +21,7 @@ export function ImagePreviewPanel({
   emptyText, 
   onClose,
   onDownload,
+  onExpand,
   format
 }: ImagePreviewPanelProps) {
   return (
@@ -38,12 +40,24 @@ export function ImagePreviewPanel({
               <X className="h-3.5 w-3.5" />
             </button>
           )}
+          {onExpand && imageUrl && !loading && (
+            <button
+              type="button"
+              onClick={onExpand}
+              className="rounded-full border p-1.5 text-muted-foreground transition hover:border-primary hover:text-primary"
+              aria-label="Expand image"
+              title="Expand"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+            </button>
+          )}
           {onDownload && imageUrl && !loading && (
             <button
               type="button"
               onClick={onDownload}
               className="rounded-full border p-1.5 text-muted-foreground transition hover:border-primary hover:text-primary"
               aria-label="Download image"
+              title="Download"
             >
               <Download className="h-3.5 w-3.5" />
             </button>

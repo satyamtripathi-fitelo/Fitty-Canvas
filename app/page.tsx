@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Moon, RotateCcw, Sun } from "lucide-react";
+import { Moon, RotateCcw, Sun, X } from "lucide-react";
 import { toast } from "sonner";
 import { apiUrl, describeApiUnreachable } from "@/lib/client-api";
+import { downloadImage } from "@/lib/download-image";
 import { useAuth } from "@/lib/auth-context";
 import { FittyCanvasLogo } from "@/components/FittyCanvasLogo";
 import { ConvertButton } from "@/components/ConvertButton";
-import { DownloadButton } from "@/components/DownloadButton";
 import { FormatSelector } from "@/components/FormatSelector";
 import { ImagePreviewPanel } from "@/components/ImagePreviewPanel";
 import { ImageUploader } from "@/components/ImageUploader";
@@ -46,6 +46,7 @@ export default function Home() {
   const [quality] = useState(100);
   const [aiModel, setAiModel] = useState<AIModel>("gemini");
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
+  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
 
   const target = useMemo(() => {
@@ -155,16 +156,15 @@ export default function Home() {
     toast.message("Image cleared");
   }
 
-  function downloadConvertedImage() {
+  async function downloadConvertedImage() {
     if (!outputUrl) return;
 
-    const link = document.createElement("a");
-    link.href = outputUrl;
-    link.download = `converted-${Date.now()}.${format}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("Download started");
+    try {
+      await downloadImage(outputUrl, format, "converted");
+      toast.success("Download started");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Download failed.");
+    }
   }
 
   function reset() {
@@ -253,6 +253,7 @@ export default function Home() {
                     loading={uploading}
                     emptyText="Upload an image to begin."
                     onClose={clearOriginalImage}
+                    onExpand={uploadedImage?.originalUrl ? () => setExpandedImageUrl(uploadedImage.originalUrl) : undefined}
                   />
                   <ImagePreviewPanel
                     label="Converted"
@@ -261,6 +262,7 @@ export default function Home() {
                     loading={converting}
                     emptyText="Run convert to see output."
                     onDownload={downloadConvertedImage}
+                    onExpand={outputUrl ? () => setExpandedImageUrl(outputUrl) : undefined}
                     format={format}
                   />
                 </div>
@@ -301,7 +303,6 @@ export default function Home() {
 
                 <div className="mt-auto space-y-2">
                   <ConvertButton disabled={!uploadedImage || uploading} loading={converting || uploading} onClick={() => void convert()} />
-                  <DownloadButton url={outputUrl} format={format} />
                   <button
                     type="button"
                     onClick={reset}
@@ -316,6 +317,31 @@ export default function Home() {
           )}
         </div>
       </div>
+      {expandedImageUrl ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 p-6 backdrop-blur">
+          <div className="absolute right-4 top-4 flex items-center gap-2">
+            {expandedImageUrl === outputUrl ? (
+              <button
+                type="button"
+                onClick={() => void downloadConvertedImage()}
+                className="rounded-[10px] border bg-card px-4 py-2 text-sm font-semibold transition hover:border-primary hover:text-primary"
+              >
+                Download
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setExpandedImageUrl(null)}
+              className="rounded-[10px] border bg-card p-2 transition hover:border-primary hover:text-primary"
+              aria-label="Close expanded image"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={expandedImageUrl} alt="Expanded preview" className="max-h-full max-w-full object-contain" />
+        </div>
+      ) : null}
     </main>
   );
 }

@@ -2,6 +2,7 @@
 
 import { Download } from "lucide-react";
 import { toast } from "sonner";
+import { downloadImage } from "@/lib/download-image";
 import type { OutputFormat } from "@/types";
 
 type DownloadButtonProps = {
@@ -14,18 +15,7 @@ export function DownloadButton({ url, format }: DownloadButtonProps) {
     if (!url) return;
 
     try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Unable to fetch output file.");
-
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = `fitty-canvas-${Date.now()}.${format}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(blobUrl);
+      await downloadImage(url, format);
       toast.success("Download started");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Download failed.");

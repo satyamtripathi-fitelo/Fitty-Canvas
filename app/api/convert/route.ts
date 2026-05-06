@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
 import { extractGeminiImage, getGeminiModel, getGeminiModelId } from "@/lib/gemini";
-import { generateImageWithOpenAI, getOpenAIModelId } from "@/lib/openai";
+import { generateImageWithOpenAI, getOpenAIImageCanvasSize, getOpenAIModelId } from "@/lib/openai";
 import { createRequestLogger } from "@/lib/server-log";
 import { loadImageForConversion } from "@/lib/storage-download";
 import { getOutputBucketName, getSupabaseAdminClient, getSupabaseProjectUrl } from "@/lib/supabase";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
 import {
+  coverToCanvas,
   convertImage,
+  createOutpaintCanvas,
+  getFastImageCanvasSize,
   getImageMetadata,
   getMimeType,
+  normalizeToCanvas,
   normalizeFormat,
-  resizeToCanvas
 } from "@/lib/sharp-utils";
 import type { AIModel } from "@/types";
 
@@ -21,7 +24,7 @@ export const maxDuration = 60; // Pro plan supports up to 300s, Hobby is 10s
 // Or reduce image sizes and use faster models
 
 const DEFAULT_RATIO_PROMPT =
-  "Change the image to the requested aspect ratio by naturally extending or cropping the scene. Preserve the main subject, style, lighting, colors, and important details. Fill any new canvas areas realistically with matching background content. Do not add borders, letterboxing, black bars, text, watermarks, or frames.";
+  "Create a complete image at the requested aspect ratio by naturally extending or cropping the scene. Preserve the main subject, identity, style, lighting, colors, and important details. Fill every pixel of the final frame edge-to-edge with realistic matching content from the same image. Do not leave transparent, black, white, blurred, duplicated, letterboxed, pillarboxed, bordered, framed, or empty areas.";
 
 type ConvertRequest = {
   jobId?: string;
@@ -109,9 +112,8 @@ export async function POST(request: Request) {
     
     if (shouldUseAI) {
       try {
-        // Add a timeout wrapper for AI generation
-        const timeoutMs = 50000; // 50 seconds (leave 10s buffer for other operations)
-        resized = await Promise.race([
+        const timeoutMs = getGenerationTimeoutMs();
+        const generated = await Promise.race([
           resizeWithAI(sourceBuffer, {
             targetRatio: body.targetRatio ?? `${targetWidth}:${targetHeight}`,
             targetWidth,
@@ -125,17 +127,18 @@ export async function POST(request: Request) {
             setTimeout(() => reject(new Error(`${aiModel} generation timed out after ${timeoutMs}ms. Try a smaller image size or use Sharp-only mode.`)), timeoutMs)
           )
         ]);
-      } catch (error) {
-        log.error(`${aiModel}:generate:error`, error);
-        log.info("fallback:sharp-resize");
-        resized = await resizeToCanvas(sourceBuffer, {
+        resized = await normalizeToCanvas(generated, {
           width: targetWidth,
           height: targetHeight,
-          background: body.background
+          background: body.background,
+          trimDarkBars: true
         });
+      } catch (error) {
+        log.error(`${aiModel}:generate:error`, error);
+        throw new Error(`AI resize failed: ${getErrorMessage(error)}`);
       }
     } else {
-      resized = await resizeToCanvas(sourceBuffer, {
+      resized = await coverToCanvas(sourceBuffer, {
         width: targetWidth,
         height: targetHeight,
         background: body.background
@@ -307,60 +310,42 @@ async function resizeWithGemini(
   }
 ) {
   const model = getGeminiModel();
-  
-  // Optimize: Reduce image size if too large to speed up processing
-  const maxDimension = 2048; // Limit to 2K for faster processing
-  let processWidth = options.targetWidth;
-  let processHeight = options.targetHeight;
-  
-  if (options.targetWidth > maxDimension || options.targetHeight > maxDimension) {
-    const scale = Math.min(maxDimension / options.targetWidth, maxDimension / options.targetHeight);
-    processWidth = Math.round(options.targetWidth * scale);
-    processHeight = Math.round(options.targetHeight * scale);
-    options.log.info("gemini:size-optimized", {
-      original: `${options.targetWidth}x${options.targetHeight}`,
-      optimized: `${processWidth}x${processHeight}`
-    });
-  }
+  const canvasSize = getFastImageCanvasSize(options.targetWidth, options.targetHeight, getAIWorkingLongEdge());
+  const outpaint = await createOutpaintCanvas(buffer, canvasSize);
   
   options.log.info("gemini:generate:start", {
     model: getGeminiModelId(),
-    sourceMime: options.sourceMime,
-    targetWidth: processWidth,
-    targetHeight: processHeight
+    sourceMime: "image/png",
+    targetWidth: outpaint.width,
+    targetHeight: outpaint.height,
+    protectedArea: `${outpaint.placedWidth}x${outpaint.placedHeight}`
   });
 
-  const result = await model.generateContent([
-    {
-      inlineData: {
-        mimeType: options.sourceMime,
-        data: buffer.toString("base64")
+  const geminiRequest = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            inlineData: {
+              mimeType: "image/png",
+              data: outpaint.image.toString("base64")
+            }
+          },
+          {
+            text: `The uploaded PNG is a ${outpaint.width}x${outpaint.height} target-ratio canvas. The visible photo must be preserved, and transparent/empty areas must be filled by generating realistic continuation from that same scene. Produce one final image at ${outpaint.width}x${outpaint.height} (${options.targetRatio}) with no borders, no black bars, no white bars, no transparency, and no pasted-photo look. ${options.prompt} Return only the final image.`
+          }
+        ]
       }
-    },
-    {
-      text: `Resize this image to ${processWidth}x${processHeight} (${options.targetRatio}) aspect ratio. ${options.prompt} Return only the modified image.`
-    }
-  ]);
+    ],
+    generationConfig: {
+      responseModalities: ["TEXT", "IMAGE"]
+    } as Record<string, unknown>
+  };
+  const result = await (model.generateContent as (request: unknown) => ReturnType<typeof model.generateContent>)(geminiRequest);
 
   const image = extractGeminiImage(result);
   options.log.info("gemini:generate:success", { outputBytes: image.length });
-  
-  // If we downscaled, upscale back to target size using Sharp
-  if (processWidth !== options.targetWidth || processHeight !== options.targetHeight) {
-    const sharp = (await import("sharp")).default;
-    const upscaled = await sharp(image)
-      .resize(options.targetWidth, options.targetHeight, {
-        fit: "fill",
-        kernel: "lanczos3"
-      })
-      .toBuffer();
-    options.log.info("gemini:upscaled", {
-      from: `${processWidth}x${processHeight}`,
-      to: `${options.targetWidth}x${options.targetHeight}`
-    });
-    return upscaled;
-  }
-  
   return image;
 }
 
@@ -375,21 +360,25 @@ async function resizeWithOpenAI(
     log: ReturnType<typeof createRequestLogger>;
   }
 ) {
+  const canvasSize = getOpenAIImageCanvasSize(options.targetWidth, options.targetHeight);
+  const outpaint = await createOutpaintCanvas(buffer, canvasSize);
+
   options.log.info("openai:generate:start", {
     model: getOpenAIModelId(),
-    sourceMime: options.sourceMime,
-    targetWidth: options.targetWidth,
-    targetHeight: options.targetHeight
+    sourceMime: "image/png",
+    targetWidth: outpaint.width,
+    targetHeight: outpaint.height,
+    protectedArea: `${outpaint.placedWidth}x${outpaint.placedHeight}`
   });
 
-  const fullPrompt = `Resize this image to ${options.targetWidth}x${options.targetHeight} (${options.targetRatio}) aspect ratio. ${options.prompt} Return only the modified image.`;
+  const fullPrompt = `The input image is already placed on a ${outpaint.width}x${outpaint.height} target-ratio canvas, and the transparent mask marks the missing areas to generate. Preserve the visible photo and naturally outpaint the masked transparent regions so the final result is a complete ${options.targetRatio} image with no black bars, white bars, borders, blur-fill, or pasted-photo look. ${options.prompt}`;
 
   const image = await generateImageWithOpenAI({
     prompt: fullPrompt,
-    imageBase64: buffer.toString("base64"),
-    imageMimeType: options.sourceMime,
-    width: options.targetWidth,
-    height: options.targetHeight
+    image: outpaint.image,
+    mask: outpaint.mask,
+    width: outpaint.width,
+    height: outpaint.height
   });
 
   options.log.info("openai:generate:success", { outputBytes: image.length });
@@ -398,6 +387,20 @@ async function resizeWithOpenAI(
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function getAIWorkingLongEdge() {
+  const requestedLongEdge = Number(process.env.AI_WORKING_LONG_EDGE);
+  if (!Number.isFinite(requestedLongEdge)) return 1024;
+
+  return clamp(Math.round(requestedLongEdge), 512, 1536);
+}
+
+function getGenerationTimeoutMs() {
+  const requestedTimeoutMs = Number(process.env.AI_GENERATION_TIMEOUT_MS);
+  if (!Number.isFinite(requestedTimeoutMs)) return 55000;
+
+  return clamp(Math.round(requestedTimeoutMs), 5000, 295000);
 }
 
 function getErrorMessage(error: unknown) {

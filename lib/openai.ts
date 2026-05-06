@@ -1,13 +1,10 @@
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 
-/**
- * OpenAI's latest image generation model is gpt-image-2 (ChatGPT Images 2.0).
- * Released April 2026, it features native reasoning, 2K resolution, improved text rendering,
- * and web search integration.
- * 
- * DALL-E 3 was deprecated on May 12, 2026.
- */
-const DEFAULT_OPENAI_MODEL = "gpt-image-2";
+const DEFAULT_OPENAI_MODEL = "gpt-image-1.5";
+const DEFAULT_OPENAI_QUALITY = "low";
+
+type OpenAIImageSize = "1024x1024" | "1536x1024" | "1024x1536";
+type OpenAIImageQuality = "low" | "medium" | "high" | "auto";
 
 function trimEnv(value: string | undefined) {
   return value?.trim() ?? "";
@@ -26,129 +23,79 @@ export function getOpenAIClient() {
 export function getOpenAIModelId() {
   const requestedModelId = trimEnv(process.env.OPENAI_MODEL);
   if (!requestedModelId) return DEFAULT_OPENAI_MODEL;
-  
-  // Allow gpt-image-2 and its variants
+
   if (isAllowedOpenAIImageModel(requestedModelId)) return requestedModelId;
 
   console.warn(
-    `[openai] Ignoring OPENAI_MODEL="${requestedModelId}". This app requires gpt-image-2 or compatible model.`
+    `[openai] Ignoring OPENAI_MODEL="${requestedModelId}". Use a GPT Image model such as gpt-image-1.5, gpt-image-1, or gpt-image-1-mini.`
   );
   return DEFAULT_OPENAI_MODEL;
 }
 
-function isAllowedOpenAIImageModel(modelId: string) {
-  const id = modelId.toLowerCase();
-  // Accept gpt-image-2 and its variants
-  return id.includes("gpt-image-2") || id.includes("gpt-5") && id.includes("image");
+export function getOpenAIImageCanvasSize(width: number, height: number) {
+  const size = determineImageSize(width, height);
+  const [canvasWidth, canvasHeight] = size.split("x").map(Number);
+
+  return {
+    width: canvasWidth,
+    height: canvasHeight,
+    size
+  };
 }
 
-/**
- * Generate an image using OpenAI's gpt-image-2 model.
- * This model supports image-to-image editing and generation.
- */
 export async function generateImageWithOpenAI(options: {
   prompt: string;
-  imageBase64?: string;
-  imageMimeType?: string;
+  image: Buffer;
+  mask: Buffer;
   width: number;
   height: number;
 }): Promise<Buffer> {
   const client = getOpenAIClient();
   const modelId = getOpenAIModelId();
+  const size = determineImageSize(options.width, options.height);
+  const quality = getOpenAIImageQuality();
 
-  // For gpt-image-2, we use the chat completions endpoint with image generation
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-
-  if (options.imageBase64 && options.imageMimeType) {
-    // Image editing mode - provide the source image
-    messages.push({
-      role: "user",
-      content: [
-        {
-          type: "image_url",
-          image_url: {
-            url: `data:${options.imageMimeType};base64,${options.imageBase64}`
-          }
-        },
-        {
-          type: "text",
-          text: options.prompt
-        }
-      ]
-    });
-  } else {
-    // Text-to-image mode
-    messages.push({
-      role: "user",
-      content: options.prompt
-    });
-  }
-
-  const response = await client.chat.completions.create({
+  const response = await client.images.edit({
     model: modelId,
-    messages,
-    // @ts-ignore - gpt-image-2 specific parameters
-    response_format: { type: "image" },
-    // @ts-ignore
-    image_config: {
-      size: determineImageSize(options.width, options.height)
-    }
+    image: await toFile(options.image, "outpaint-input.png", { type: "image/png" }),
+    mask: await toFile(options.mask, "outpaint-mask.png", { type: "image/png" }),
+    prompt: options.prompt,
+    size,
+    quality,
+    input_fidelity: modelId.includes("mini") ? "low" : "high",
+    output_format: "png",
+    n: 1
   });
 
-  // Extract the image from the response
-  const imageContent = response.choices[0]?.message?.content;
-  
-  if (!imageContent) {
-    throw new Error("OpenAI did not return an image.");
-  }
+  const imageData = response.data?.[0]?.b64_json;
 
-  // The response contains base64 image data
-  // Parse the response to extract the image
-  let imageData: string;
-  
-  if (typeof imageContent === "string") {
-    // Try to extract base64 data from the response
-    const base64Match = imageContent.match(/data:image\/[^;]+;base64,([^"]+)/);
-    if (base64Match) {
-      imageData = base64Match[1];
-    } else {
-      // Assume the entire content is base64
-      imageData = imageContent;
-    }
-  } else {
-    throw new Error("Unexpected response format from OpenAI.");
+  if (!imageData) {
+    throw new Error("OpenAI did not return an image.");
   }
 
   return Buffer.from(imageData, "base64");
 }
 
-/**
- * Determine the appropriate image size for OpenAI based on target dimensions.
- * gpt-image-2 supports: 1024x1024, 1024x1792, 1792x1024, and 2K resolutions
- */
-function determineImageSize(width: number, height: number): string {
+function isAllowedOpenAIImageModel(modelId: string) {
+  const id = modelId.toLowerCase();
+  return id === "gpt-image-1.5" || id === "gpt-image-1" || id === "gpt-image-1-mini" || id === "chatgpt-image-latest";
+}
+
+function getOpenAIImageQuality(): OpenAIImageQuality {
+  const requestedQuality = trimEnv(process.env.OPENAI_IMAGE_QUALITY).toLowerCase();
+  if (requestedQuality === "medium" || requestedQuality === "high" || requestedQuality === "auto") {
+    return requestedQuality;
+  }
+
+  return DEFAULT_OPENAI_QUALITY;
+}
+
+function determineImageSize(width: number, height: number): OpenAIImageSize {
   const aspectRatio = width / height;
 
-  // For 2K generation (if both dimensions are large)
-  if (width >= 1536 || height >= 1536) {
-    if (Math.abs(aspectRatio - 1) < 0.1) {
-      return "2048x2048";
-    } else if (aspectRatio > 1) {
-      return "2048x1536";
-    } else {
-      return "1536x2048";
-    }
+  if (Math.abs(aspectRatio - 1) < 0.08) {
+    return "1024x1024";
   }
 
-  // Standard sizes
-  if (Math.abs(aspectRatio - 1) < 0.1) {
-    // Square
-    return "1024x1024";
-  } else if (aspectRatio > 1) {
-    // Landscape
-    return "1792x1024";
-  } else {
-    // Portrait
-    return "1024x1792";
-  }
+  return aspectRatio > 1 ? "1536x1024" : "1024x1536";
 }

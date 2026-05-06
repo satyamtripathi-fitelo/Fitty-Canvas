@@ -38,7 +38,7 @@ export function DownloadButton({ url, format }: DownloadButtonProps) {
     <button
       type="button"
       onClick={download}
-      className="flex w-full items-center justify-center gap-2 rounded-[10px] border px-4 py-3 text-sm font-semibold transition hover:border-primary hover:text-primary"
+      className="flex w-full items-center justify-center gap-2 rounded-[10px] border px-4 py-2.5 text-sm font-semibold transition hover:border-primary hover:text-primary"
     >
       <Download className="h-4 w-4" />
       Download

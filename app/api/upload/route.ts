@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createRequestLogger } from "@/lib/server-log";
+import { enforceUserHistoryLimit } from "@/lib/history-cleanup";
 import { getSupabaseAdminClient, getUploadBucketName } from "@/lib/supabase";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
 import { getImageMetadata } from "@/lib/sharp-utils";
@@ -121,6 +122,8 @@ export async function POST(request: Request) {
       width: metadata.width,
       height: metadata.height
     });
+
+    await enforceUserHistoryLimit(supabase, user.id);
 
     return NextResponse.json({
       jobId: insert.data.id,

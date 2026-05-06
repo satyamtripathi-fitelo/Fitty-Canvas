@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { extractGeminiImage, getGeminiModel, getGeminiModelId } from "@/lib/gemini";
 import { generateImageWithOpenAI, getOpenAIImageCanvasSize, getOpenAIModelId } from "@/lib/openai";
+import { enforceUserHistoryLimit } from "@/lib/history-cleanup";
 import { createRequestLogger } from "@/lib/server-log";
 import { loadImageForConversion } from "@/lib/storage-download";
 import { getOutputBucketName, getSupabaseAdminClient, getSupabaseProjectUrl } from "@/lib/supabase";
@@ -256,6 +257,8 @@ export async function POST(request: Request) {
       width: targetWidth,
       height: targetHeight
     });
+
+    await enforceUserHistoryLimit(supabase, user.id);
 
     return NextResponse.json({
       outputUrl,

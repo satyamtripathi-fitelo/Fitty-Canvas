@@ -83,20 +83,20 @@ export function ImageUploader({ uploadedImage, onUploaded, onUploadingChange }: 
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         className={cn(
-          "flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed p-8 text-center transition",
+          "flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-4 text-center transition",
           dragging ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/70"
         )}
       >
         <input ref={inputRef} type="file" accept={ACCEPT} onChange={handleInput} className="hidden" />
-        <UploadCloud className="mb-4 h-10 w-10 text-primary" />
-        <p className="text-base font-semibold">Drop your image here</p>
-        <p className="mt-1 text-sm text-muted-foreground">or click to browse JPG, PNG, WEBP, AVIF, TIFF, GIF, BMP</p>
+        <UploadCloud className="mb-2 h-7 w-7 text-primary" />
+        <p className="text-sm font-semibold">Drop your image here</p>
+        <p className="mt-1 text-xs text-muted-foreground">or click to browse JPG, PNG, WEBP, AVIF, TIFF, GIF, BMP</p>
       </div>
 
       {uploadedImage ? (
-        <div className="mt-4 rounded-xl border bg-background/60 p-4 text-sm">
-          <div className="font-medium">{uploadedImage.fileName}</div>
-          <div className="mt-1 text-muted-foreground">
+        <div className="mt-2 rounded-xl border bg-background/60 p-3 text-xs">
+          <div className="truncate font-medium">{uploadedImage.fileName}</div>
+          <div className="mt-1 truncate text-muted-foreground">
             {uploadedImage.originalWidth} x {uploadedImage.originalHeight} px · {formatBytes(uploadedImage.fileSize)}
           </div>
         </div>

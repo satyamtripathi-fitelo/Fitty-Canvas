@@ -23,11 +23,11 @@ export function ImagePreviewPanel({
   format
 }: ImagePreviewPanelProps) {
   return (
-    <section className="rounded-2xl border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</h2>
+    <section className="flex min-h-0 flex-col rounded-xl border bg-card p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase text-muted-foreground">{label}</h2>
         <div className="flex items-center gap-2">
-          <span className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground">{ratio}</span>
+          <span className="rounded-full border px-2 py-1 text-[11px] text-muted-foreground">{ratio}</span>
           {onClose && imageUrl && !loading && (
             <button
               type="button"
@@ -50,26 +50,26 @@ export function ImagePreviewPanel({
           )}
         </div>
       </div>
-      <div className="checkerboard flex min-h-[360px] items-center justify-center overflow-hidden rounded-xl border p-4">
+      <div className="checkerboard flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border p-2">
         <div
           className={cn(
-            "relative flex max-h-[500px] w-full max-w-full items-center justify-center overflow-hidden rounded-lg border bg-background/80",
+            "relative flex max-h-full min-h-32 w-full max-w-full items-center justify-center overflow-hidden rounded-lg border bg-background/80",
             loading &&
               "animate-shimmer bg-[linear-gradient(90deg,rgba(27,67,44,0.06),rgba(27,67,44,0.14),rgba(27,67,44,0.06))] bg-[length:200%_100%]"
           )}
           style={{ aspectRatio: ratio }}
         >
           {loading ? (
-            <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <div className="flex flex-col items-center gap-2 text-xs text-muted-foreground">
+              <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               {label === "Original" ? "Uploading image..." : "Converting image..."}
             </div>
           ) : imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={imageUrl} alt={`${label} preview`} className="h-full w-full object-contain" />
           ) : (
-            <div className="flex flex-col items-center gap-3 text-center text-sm text-muted-foreground">
-              <ImageIcon className="h-10 w-10" />
+            <div className="flex flex-col items-center gap-2 text-center text-xs text-muted-foreground">
+              <ImageIcon className="h-7 w-7" />
               {emptyText}
             </div>
           )}

@@ -11,14 +11,14 @@ type ModelSelectorProps = {
 
 export function ModelSelector({ model, onModelChange }: ModelSelectorProps) {
   return (
-    <div className="space-y-3">
-      <label className="text-sm font-medium text-muted-foreground">AI Model</label>
-      <div className="grid grid-cols-2 gap-2 rounded-xl border bg-card p-1">
+    <div className="space-y-2">
+      <label className="text-xs font-medium text-muted-foreground">AI Model</label>
+      <div className="grid grid-cols-2 gap-1 rounded-xl border bg-card p-1">
         <button
           type="button"
           onClick={() => onModelChange("gemini")}
           className={cn(
-            "flex items-center justify-center gap-2 rounded-[10px] px-3 py-2.5 text-sm font-medium transition",
+            "flex items-center justify-center gap-2 rounded-[10px] px-3 py-2 text-sm font-medium transition",
             model === "gemini"
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -31,7 +31,7 @@ export function ModelSelector({ model, onModelChange }: ModelSelectorProps) {
           type="button"
           onClick={() => onModelChange("openai")}
           className={cn(
-            "flex items-center justify-center gap-2 rounded-[10px] px-3 py-2.5 text-sm font-medium transition",
+            "flex items-center justify-center gap-2 rounded-[10px] px-3 py-2 text-sm font-medium transition",
             model === "openai"
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"

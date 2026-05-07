@@ -16,7 +16,7 @@ import {
   normalizeToCanvas,
   normalizeFormat,
 } from "@/lib/sharp-utils";
-import type { AIModel } from "@/types";
+import type { AIModel, GenerationUsage } from "@/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // Pro plan supports up to 300s, Hobby is 10s
@@ -110,6 +110,7 @@ export async function POST(request: Request) {
     const shouldUseAI = Boolean(prompt) || sourceMetadata.width !== targetWidth || sourceMetadata.height !== targetHeight;
     
     let resized: Buffer;
+    let generationUsage: GenerationUsage | null = null;
     
     if (shouldUseAI) {
       try {
@@ -128,7 +129,8 @@ export async function POST(request: Request) {
             setTimeout(() => reject(new Error(`${aiModel} generation timed out after ${timeoutMs}ms. Try a smaller image size or use Sharp-only mode.`)), timeoutMs)
           )
         ]);
-        resized = await normalizeToCanvas(generated, {
+        generationUsage = generated.usage;
+        resized = await normalizeToCanvas(generated.image, {
           width: targetWidth,
           height: targetHeight,
           background: body.background,
@@ -250,6 +252,8 @@ export async function POST(request: Request) {
       jobId = insert.data?.id;
     }
 
+    await saveGenerationUsage(supabase, jobId, user.id, generationUsage, log);
+
     log.info("request:success", {
       jobId,
       outputBucket,
@@ -265,7 +269,8 @@ export async function POST(request: Request) {
       width: targetWidth,
       height: targetHeight,
       format: outputFormat,
-      jobId
+      jobId,
+      usage: generationUsage
     });
   } catch (error) {
     log.error("request:error", error, { jobId });
@@ -348,8 +353,12 @@ async function resizeWithGemini(
   const result = await (model.generateContent as (request: unknown) => ReturnType<typeof model.generateContent>)(geminiRequest);
 
   const image = extractGeminiImage(result);
-  options.log.info("gemini:generate:success", { outputBytes: image.length });
-  return image;
+  const usage = normalizeGeminiUsage(result.response.usageMetadata, getGeminiModelId());
+  options.log.info("gemini:generate:success", {
+    outputBytes: image.length,
+    totalTokens: usage?.totalTokens
+  });
+  return { image, usage };
 }
 
 async function resizeWithOpenAI(
@@ -376,7 +385,7 @@ async function resizeWithOpenAI(
 
   const fullPrompt = `The input image is already placed on a ${outpaint.width}x${outpaint.height} target-ratio canvas, and the transparent mask marks the missing areas to generate. Preserve the visible photo and naturally outpaint the masked transparent regions so the final result is a complete ${options.targetRatio} image with no black bars, white bars, borders, blur-fill, or pasted-photo look. ${options.prompt}`;
 
-  const image = await generateImageWithOpenAI({
+  const generated = await generateImageWithOpenAI({
     prompt: fullPrompt,
     image: outpaint.image,
     mask: outpaint.mask,
@@ -384,8 +393,11 @@ async function resizeWithOpenAI(
     height: outpaint.height
   });
 
-  options.log.info("openai:generate:success", { outputBytes: image.length });
-  return image;
+  options.log.info("openai:generate:success", {
+    outputBytes: generated.image.length,
+    totalTokens: generated.usage?.totalTokens
+  });
+  return generated;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -404,6 +416,54 @@ function getGenerationTimeoutMs() {
   if (!Number.isFinite(requestedTimeoutMs)) return 55000;
 
   return clamp(Math.round(requestedTimeoutMs), 5000, 295000);
+}
+
+async function saveGenerationUsage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  jobId: string | undefined,
+  userId: string,
+  usage: GenerationUsage | null,
+  log: ReturnType<typeof createRequestLogger>
+) {
+  if (!jobId || !usage) return;
+
+  const { error } = await supabase
+    .from("image_jobs")
+    .update({
+      ai_model: usage.model,
+      usage_total_tokens: usage.totalTokens,
+      usage_input_tokens: usage.inputTokens,
+      usage_output_tokens: usage.outputTokens,
+      usage_input_text_tokens: usage.inputTextTokens ?? null,
+      usage_input_image_tokens: usage.inputImageTokens ?? null,
+      usage_output_text_tokens: usage.outputTextTokens ?? null,
+      usage_output_image_tokens: usage.outputImageTokens ?? null,
+      usage_cached_tokens: usage.cachedTokens ?? null,
+      usage_raw: usage.raw ?? null
+    })
+    .eq("id", jobId)
+    .eq("user_id", userId);
+
+  if (error) {
+    log.error("usage:save:error", error);
+  }
+}
+
+function normalizeGeminiUsage(
+  usage: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; cachedContentTokenCount?: number } | undefined,
+  model: string
+): GenerationUsage | null {
+  if (!usage) return null;
+
+  return {
+    provider: "gemini",
+    model,
+    totalTokens: usage.totalTokenCount ?? null,
+    inputTokens: usage.promptTokenCount ?? null,
+    outputTokens: usage.candidatesTokenCount ?? null,
+    cachedTokens: usage.cachedContentTokenCount ?? null,
+    raw: usage
+  };
 }
 
 function getErrorMessage(error: unknown) {

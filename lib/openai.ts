@@ -1,10 +1,24 @@
 import OpenAI, { toFile } from "openai";
+import type { GenerationUsage } from "@/types";
 
 const DEFAULT_OPENAI_MODEL = "gpt-image-1.5";
 const DEFAULT_OPENAI_QUALITY = "high";
 
 type OpenAIImageSize = "1024x1024" | "1536x1024" | "1024x1536";
 type OpenAIImageQuality = "low" | "medium" | "high" | "auto";
+type OpenAIImageUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  input_tokens_details?: {
+    text_tokens?: number;
+    image_tokens?: number;
+  };
+  output_tokens_details?: {
+    text_tokens?: number;
+    image_tokens?: number;
+  };
+};
 
 function trimEnv(value: string | undefined) {
   return value?.trim() ?? "";
@@ -49,7 +63,7 @@ export async function generateImageWithOpenAI(options: {
   mask: Buffer;
   width: number;
   height: number;
-}): Promise<Buffer> {
+}): Promise<{ image: Buffer; usage: GenerationUsage | null }> {
   const client = getOpenAIClient();
   const modelId = getOpenAIModelId();
   const size = determineImageSize(options.width, options.height);
@@ -73,7 +87,10 @@ export async function generateImageWithOpenAI(options: {
     throw new Error("OpenAI did not return an image.");
   }
 
-  return Buffer.from(imageData, "base64");
+  return {
+    image: Buffer.from(imageData, "base64"),
+    usage: normalizeOpenAIUsage(response.usage, modelId)
+  };
 }
 
 function isAllowedOpenAIImageModel(modelId: string) {
@@ -98,4 +115,24 @@ function determineImageSize(width: number, height: number): OpenAIImageSize {
   }
 
   return aspectRatio > 1 ? "1536x1024" : "1024x1536";
+}
+
+function normalizeOpenAIUsage(
+  usage: OpenAIImageUsage | undefined,
+  model: string
+): GenerationUsage | null {
+  if (!usage) return null;
+
+  return {
+    provider: "openai",
+    model,
+    totalTokens: usage.total_tokens ?? null,
+    inputTokens: usage.input_tokens ?? null,
+    outputTokens: usage.output_tokens ?? null,
+    inputTextTokens: usage.input_tokens_details?.text_tokens ?? null,
+    inputImageTokens: usage.input_tokens_details?.image_tokens ?? null,
+    outputTextTokens: usage.output_tokens_details?.text_tokens ?? null,
+    outputImageTokens: usage.output_tokens_details?.image_tokens ?? null,
+    raw: usage
+  };
 }

@@ -83,6 +83,16 @@ create table if not exists image_jobs (
   target_height int,
   prompt text,
   output_format text default 'jpg',
+  ai_model text,
+  usage_total_tokens int,
+  usage_input_tokens int,
+  usage_output_tokens int,
+  usage_input_text_tokens int,
+  usage_input_image_tokens int,
+  usage_output_text_tokens int,
+  usage_output_image_tokens int,
+  usage_cached_tokens int,
+  usage_raw jsonb,
   status text default 'pending',
   created_at timestamptz default now()
 );
@@ -90,6 +100,19 @@ create table if not exists image_jobs (
 -- Create indexes
 CREATE INDEX idx_image_jobs_user_id ON image_jobs(user_id);
 CREATE INDEX idx_image_jobs_user_created ON image_jobs(user_id, created_at DESC);
+
+-- Add these columns if your table already exists
+alter table image_jobs
+  add column if not exists ai_model text,
+  add column if not exists usage_total_tokens int,
+  add column if not exists usage_input_tokens int,
+  add column if not exists usage_output_tokens int,
+  add column if not exists usage_input_text_tokens int,
+  add column if not exists usage_input_image_tokens int,
+  add column if not exists usage_output_text_tokens int,
+  add column if not exists usage_output_image_tokens int,
+  add column if not exists usage_cached_tokens int,
+  add column if not exists usage_raw jsonb;
 
 -- Enable Row Level Security
 ALTER TABLE image_jobs ENABLE ROW LEVEL SECURITY;

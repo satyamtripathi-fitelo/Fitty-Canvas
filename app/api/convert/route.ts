@@ -259,7 +259,8 @@ export async function POST(request: Request) {
       outputBucket,
       filename,
       width: targetWidth,
-      height: targetHeight
+      height: targetHeight,
+      usageTotalTokens: generationUsage?.totalTokens ?? null
     });
 
     await enforceUserHistoryLimit(supabase, user.id);
@@ -446,6 +447,12 @@ async function saveGenerationUsage(
 
   if (error) {
     log.error("usage:save:error", error);
+  } else {
+    log.info("usage:save:success", {
+      jobId,
+      model: usage.model,
+      totalTokens: usage.totalTokens
+    });
   }
 }
 

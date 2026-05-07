@@ -15,7 +15,7 @@ import { PromptInput } from "@/components/PromptInput";
 import { RatioSelector } from "@/components/RatioSelector";
 import { ModelSelector } from "@/components/ModelSelector";
 import { AuthButton } from "@/components/AuthButton";
-import type { AIModel, ConvertResponse, OutputFormat, RatioPreset, UploadedImage } from "@/types";
+import type { AIModel, ConvertResponse, GenerationUsage, OutputFormat, RatioPreset, UploadedImage } from "@/types";
 
 const RATIO_PRESETS: RatioPreset[] = [
   { label: "Original", description: "Keep source ratio", width: null, height: null },
@@ -46,6 +46,7 @@ export default function Home() {
   const [quality] = useState(100);
   const [aiModel, setAiModel] = useState<AIModel>("gemini");
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
+  const [generationUsage, setGenerationUsage] = useState<GenerationUsage | null>(null);
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
 
@@ -87,6 +88,7 @@ export default function Home() {
     if (!user) {
       setUploadedImage(null);
       setOutputUrl(null);
+      setGenerationUsage(null);
     }
   }, [user]);
 
@@ -107,6 +109,7 @@ export default function Home() {
 
     setConverting(true);
     setOutputUrl(null);
+    setGenerationUsage(null);
     toast.info("Conversion started");
 
     let reachedApi = false;
@@ -136,6 +139,7 @@ export default function Home() {
       }
 
       setOutputUrl(payload.outputUrl);
+      setGenerationUsage(payload.usage ?? null);
       toast.success("Conversion complete");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Conversion failed.";
@@ -153,6 +157,7 @@ export default function Home() {
   function clearOriginalImage() {
     setUploadedImage(null);
     setOutputUrl(null);
+    setGenerationUsage(null);
     toast.message("Image cleared");
   }
 
@@ -170,6 +175,7 @@ export default function Home() {
   function reset() {
     setUploadedImage(null);
     setOutputUrl(null);
+    setGenerationUsage(null);
     setPrompt("");
     setSelectedRatio("Original");
     setFormat("jpg");
@@ -240,6 +246,7 @@ export default function Home() {
                     onUploaded={(image) => {
                       setUploadedImage(image);
                       setOutputUrl(null);
+                      setGenerationUsage(null);
                     }}
                     onUploadingChange={setUploading}
                   />
@@ -279,12 +286,14 @@ export default function Home() {
                     onSelect={(label) => {
                       setSelectedRatio(label);
                       setOutputUrl(null);
+                      setGenerationUsage(null);
                     }}
                     onCustomChange={(width, height) => {
                       setCustomWidth(width);
                       setCustomHeight(height);
                       setSelectedRatio("Custom");
                       setOutputUrl(null);
+                      setGenerationUsage(null);
                     }}
                   />
                 </div>
@@ -300,6 +309,21 @@ export default function Home() {
                   <h2 className="mb-2 text-sm font-semibold">Export</h2>
                   <FormatSelector format={format} onFormatChange={setFormat} />
                 </div>
+
+                {outputUrl ? (
+                  <div className="rounded-xl border bg-background p-3 text-xs">
+                    <div className="mb-1 font-semibold">Token usage</div>
+                    {generationUsage?.totalTokens ? (
+                      <div className="grid grid-cols-3 gap-2 text-muted-foreground">
+                        <span>Total: {generationUsage.totalTokens.toLocaleString()}</span>
+                        <span>Input: {generationUsage.inputTokens?.toLocaleString() ?? "-"}</span>
+                        <span>Output: {generationUsage.outputTokens?.toLocaleString() ?? "-"}</span>
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground">Usage was not returned for this generation.</p>
+                    )}
+                  </div>
+                ) : null}
 
                 <div className="mt-auto space-y-2">
                   <ConvertButton disabled={!uploadedImage || uploading} loading={converting || uploading} onClick={() => void convert()} />

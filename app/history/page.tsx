@@ -119,7 +119,7 @@ export default function HistoryPage() {
                   <div className="mt-2 truncate text-xs font-medium">{item.target_ratio ?? "Converted"}</div>
                   <div className="flex items-center justify-between gap-2 text-xs uppercase text-muted-foreground">
                     <span>{item.output_format ?? "image"}</span>
-                    {item.usage_total_tokens ? <span>{item.usage_total_tokens.toLocaleString()} tok</span> : null}
+                    <span>{item.usage_total_tokens ? `${item.usage_total_tokens.toLocaleString()} tok` : "no usage"}</span>
                   </div>
                 </a>
               ))}

@@ -8,18 +8,17 @@ type FittyCanvasLogoProps = {
 
 export function FittyCanvasLogo({ className }: FittyCanvasLogoProps) {
   return (
-    <div className={cn("flex flex-wrap items-end gap-x-1 gap-y-0", className)}>
+    <div className={cn("flex items-end gap-1.5", className)}>
       <span className="sr-only">Fitty Canvas</span>
+      <img
+        src="/brand/fitty-wordmark-transparent.png"
+        alt=""
+        aria-hidden
+        className="h-[1.45rem] w-auto translate-y-[0.04em] object-contain sm:h-[1.65rem]"
+      />
       <span
         aria-hidden
-        className="font-fitty text-[clamp(1.35rem,4vw,1.85rem)] font-bold leading-none tracking-[-0.04em]"
-        style={{ color: BRAND_GREEN }}
-      >
-        Fitty
-      </span>
-      <span
-        aria-hidden
-        className="font-fitty text-[clamp(1.35rem,4vw,1.85rem)] font-bold leading-none tracking-[-0.04em]"
+        className="font-fitty text-[1.54rem] font-semibold leading-[0.88] tracking-[-0.025em] sm:text-[1.75rem]"
         style={{ color: BRAND_GREEN }}
       >
         Canvas
